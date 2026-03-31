@@ -4,27 +4,39 @@ import type { BetterAuthClientPlugin } from "better-auth/client";
 import type { createSudoPlugin } from "../server/create-sudo-plugin";
 import { SudoHeaders } from "../shared/constants";
 
-type RequestHeaders = Record<string, string>;
+interface SudoClientError {
+  message?: string;
+  code?: string;
+}
 
-export type SudoClientActions = {
+interface SudoResponse<TData> {
+  data: TData | null;
+  error: SudoClientError | Error | unknown;
+}
+
+interface RequestHeaders {
+  [key: string]: string;
+}
+
+export interface SudoClientActions {
   sudo: {
     reauth: (
       data: { password: string },
       fetchOptions?: BetterFetchOption,
-    ) => Promise<{ data: { sudoToken: string; expiresIn: number } | null; error: any }>;
+    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
     reauthOtpSend: (
       fetchOptions?: BetterFetchOption,
-    ) => Promise<{ data: { message: string } | null; error: any }>;
+    ) => Promise<SudoResponse<{ message: string }>>;
     reauthOtpVerify: (
       data: { otp: string },
       fetchOptions?: BetterFetchOption,
-    ) => Promise<{ data: { sudoToken: string; expiresIn: number } | null; error: any }>;
+    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
     withSudoPassword: <T>(
       password: string,
       fn: (headers: RequestHeaders) => Promise<T>,
-    ) => Promise<{ data: T | null; error: any }>;
+    ) => Promise<SudoResponse<T>>;
   };
-};
+}
 
 export const sudoPluginClient = (): BetterAuthClientPlugin => {
   return {
@@ -59,7 +71,7 @@ export const sudoPluginClient = (): BetterAuthClientPlugin => {
           withSudoPassword: async <T>(
             password: string,
             fn: (headers: RequestHeaders) => Promise<T>,
-          ): Promise<{ data: T | null; error: any }> => {
+          ): Promise<SudoResponse<T>> => {
             const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
               "/sudo/reauth",
               {

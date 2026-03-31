@@ -3,13 +3,17 @@
     "target": "ES2022",
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "moduleResolution": "Bundler",
     "verbatimModuleSyntax": true,
-    "noEmit": true,
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
     "strict": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true
   },
-  "include": ["src/**/*.ts", "index.ts"]
+  "include": ["src/**/*.ts"]
 }
