@@ -142,6 +142,7 @@ export function createSudoPlugin(options: SudoPluginOptions): {
 
   const plugin: BetterAuthPlugin = {
     id: "sudo",
+    version: "0.1.0",
     rateLimit: [
       { pathMatcher: (path) => path.startsWith("/sudo/"), window: 60, max: 10 },
       { pathMatcher: (path) => path === "/sudo/reauth", window: 60, max: 5 },

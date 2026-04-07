@@ -38,9 +38,12 @@ export interface SudoClientActions {
   };
 }
 
-export const sudoPluginClient = (): BetterAuthClientPlugin => {
+export const sudoPluginClient = (): BetterAuthClientPlugin & {
+  getActions: ($fetch: any) => SudoClientActions;
+} => {
   return {
     id: "sudo",
+    version: "0.1.0",
     $InferServerPlugin: {} as ReturnType<typeof createSudoPlugin>["plugin"],
     pathMethods: {
       "/sudo/reauth": "POST",
@@ -92,8 +95,4 @@ export const sudoPluginClient = (): BetterAuthClientPlugin => {
     },
   } satisfies BetterAuthClientPlugin;
 };
-
-export function asSudoClient<T extends object>(authClient: T): T & SudoClientActions {
-  return authClient as T & SudoClientActions;
-}
 

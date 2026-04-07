@@ -86,6 +86,7 @@ export function createSudoPlugin(options) {
     }
     const plugin = {
         id: "sudo",
+        version: "0.1.0",
         rateLimit: [
             { pathMatcher: (path) => path.startsWith("/sudo/"), window: 60, max: 10 },
             { pathMatcher: (path) => path === "/sudo/reauth", window: 60, max: 5 },

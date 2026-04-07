@@ -2,6 +2,7 @@ import { SudoHeaders } from "../shared/constants";
 export const sudoPluginClient = () => {
     return {
         id: "sudo",
+        version: "0.1.0",
         $InferServerPlugin: {},
         pathMethods: {
             "/sudo/reauth": "POST",
@@ -46,7 +47,4 @@ export const sudoPluginClient = () => {
         },
     };
 };
-export function asSudoClient(authClient) {
-    return authClient;
-}
 //# sourceMappingURL=sudo-plugin-client.js.map
