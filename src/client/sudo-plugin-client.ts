@@ -93,7 +93,7 @@ export const sudoPluginClient = (): BetterAuthClientPlugin => {
   } satisfies BetterAuthClientPlugin;
 };
 
-export function asSudoClient<T extends object>(authClient: T): SudoClientActions {
-  return authClient as unknown as SudoClientActions;
+export function asSudoClient<T extends object>(authClient: T): T & SudoClientActions {
+  return authClient as T & SudoClientActions;
 }
 

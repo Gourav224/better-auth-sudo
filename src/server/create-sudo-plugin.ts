@@ -27,8 +27,14 @@ export interface SudoPluginOptions {
 
 export interface SudoTokenPayload {
   userId: string;
+  sessionId: string;
   method: "password" | "otp";
   createdAt: number;
+}
+
+interface OtpPayload {
+  code: string;
+  attempts: number;
 }
 
 interface StorageAdapter {
@@ -82,7 +88,13 @@ function createRedisStorage(client: RedisLike): StorageAdapter {
 
 const tokenKey = (token: string) => `sudo_token:${token}`;
 const otpKey = (userId: string) => `sudo_otp:${userId}`;
-const generateToken = () => randomBytes(32).toString("hex");
+const generateToken = () => {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return randomBytes(32).toString("hex");
+  }
+};
 const generateOtp = () =>
   (randomBytes(4).readUInt32BE(0) % 1_000_000).toString().padStart(6, "0");
 
@@ -98,7 +110,11 @@ function getIp(req?: Request): string {
 
 export function createSudoPlugin(options: SudoPluginOptions): {
   plugin: BetterAuthPlugin;
-  verifyToken: (token: string, userId: string) => Promise<SudoTokenPayload | null>;
+  verifyToken: (
+    token: string,
+    userId: string,
+    sessionId: string
+  ) => Promise<SudoTokenPayload | null>;
 } {
   const ttl = options.ttl ?? 300;
   const otpTtl = options.otpTtl ?? 600;
@@ -107,7 +123,11 @@ export function createSudoPlugin(options: SudoPluginOptions): {
       ? createRedisStorage(options.storage.client)
       : createMemoryStorage();
 
-  async function verifyToken(token: string, userId: string): Promise<SudoTokenPayload | null> {
+  async function verifyToken(
+    token: string,
+    userId: string,
+    sessionId: string
+  ): Promise<SudoTokenPayload | null> {
     const raw = await storage.get(tokenKey(token));
     if (raw) await storage.del(tokenKey(token));
     if (!raw) return null;
@@ -117,7 +137,7 @@ export function createSudoPlugin(options: SudoPluginOptions): {
     } catch {
       return null;
     }
-    return payload.userId === userId ? payload : null;
+    return payload.userId === userId && payload.sessionId === sessionId ? payload : null;
   }
 
   const plugin: BetterAuthPlugin = {
@@ -167,7 +187,12 @@ export function createSudoPlugin(options: SudoPluginOptions): {
             });
           }
           const token = generateToken();
-          const payload: SudoTokenPayload = { userId: user.id, method: "password", createdAt: Date.now() };
+          const payload: SudoTokenPayload = {
+            userId: user.id,
+            sessionId: ctx.context.session.session.id,
+            method: "password",
+            createdAt: Date.now(),
+          };
           await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
           await options.onSudoGranted?.({
             userId: user.id,
@@ -192,7 +217,8 @@ export function createSudoPlugin(options: SudoPluginOptions): {
           }
           const { user } = ctx.context.session;
           const otp = generateOtp();
-          await storage.set(otpKey(user.id), otp, otpTtl);
+          const otpPayload: OtpPayload = { code: otp, attempts: 0 };
+          await storage.set(otpKey(user.id), JSON.stringify(otpPayload), otpTtl);
           await options.sendOtp({ email: user.email, otp, name: user.name ?? user.email });
           return ctx.json({ message: "OTP sent to your registered email address." });
         },
@@ -209,16 +235,42 @@ export function createSudoPlugin(options: SudoPluginOptions): {
           ctx.setHeader?.("Pragma", "no-cache");
           const { user } = ctx.context.session;
           const key = otpKey(user.id);
-          const storedOtp = await storage.get(key);
-          if (storedOtp) await storage.del(key);
-          if (!storedOtp || storedOtp !== ctx.body.otp) {
+          const raw = await storage.get(key);
+          if (!raw) {
             throw ctx.error("UNAUTHORIZED", {
-              message: "Invalid or expired OTP.",
+              message: "OTP has expired or has not been requested.",
               code: SudoErrorCodes.INVALID_OTP,
             });
           }
+
+          const otpPayload = JSON.parse(raw) as OtpPayload;
+
+          if (otpPayload.code !== ctx.body.otp) {
+            otpPayload.attempts++;
+            if (otpPayload.attempts >= 3) {
+              await storage.del(key);
+              throw ctx.error("UNAUTHORIZED", {
+                message: "Too many failed attempts. Please request a new OTP.",
+                code: SudoErrorCodes.INVALID_OTP,
+              });
+            }
+            await storage.set(key, JSON.stringify(otpPayload), otpTtl);
+            throw ctx.error("UNAUTHORIZED", {
+              message: `Invalid OTP. ${3 - otpPayload.attempts} attempts remaining.`,
+              code: SudoErrorCodes.INVALID_OTP,
+            });
+          }
+
+          // Valid case: cleanup OTP
+          await storage.del(key);
+
           const token = generateToken();
-          const payload: SudoTokenPayload = { userId: user.id, method: "otp", createdAt: Date.now() };
+          const payload: SudoTokenPayload = {
+            userId: user.id,
+            sessionId: ctx.context.session.session.id,
+            method: "otp",
+            createdAt: Date.now(),
+          };
           await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
           await options.onSudoGranted?.({
             userId: user.id,
@@ -239,8 +291,8 @@ export function createSudoPlugin(options: SudoPluginOptions): {
         async (ctx) => {
           ctx.setHeader?.("Cache-Control", "no-store");
           ctx.setHeader?.("Pragma", "no-cache");
-          const { user } = ctx.context.session;
-          const payload = await verifyToken(ctx.body.sudoToken, user.id);
+          const { user, session } = ctx.context.session;
+          const payload = await verifyToken(ctx.body.sudoToken, user.id, session.id);
           if (!payload) {
             throw ctx.error("FORBIDDEN", {
               message: "Sudo token is invalid or has expired.",

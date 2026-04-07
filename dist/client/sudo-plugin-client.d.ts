@@ -32,6 +32,6 @@ export interface SudoClientActions {
     };
 }
 export declare const sudoPluginClient: () => BetterAuthClientPlugin;
-export declare function asSudoClient<T extends object>(authClient: T): SudoClientActions;
+export declare function asSudoClient<T extends object>(authClient: T): T & SudoClientActions;
 export {};
 //# sourceMappingURL=sudo-plugin-client.d.ts.map

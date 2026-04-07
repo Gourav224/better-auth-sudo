@@ -27,11 +27,12 @@ export interface SudoPluginOptions {
 }
 export interface SudoTokenPayload {
     userId: string;
+    sessionId: string;
     method: "password" | "otp";
     createdAt: number;
 }
 export declare function createSudoPlugin(options: SudoPluginOptions): {
     plugin: BetterAuthPlugin;
-    verifyToken: (token: string, userId: string) => Promise<SudoTokenPayload | null>;
+    verifyToken: (token: string, userId: string, sessionId: string) => Promise<SudoTokenPayload | null>;
 };
 //# sourceMappingURL=create-sudo-plugin.d.ts.map
