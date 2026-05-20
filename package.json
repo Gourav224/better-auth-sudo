@@ -22,14 +22,14 @@
   },
   "peerDependencies": {
     "@better-fetch/fetch": "^1.1.2",
-    "better-auth": "^1.6.0"
+    "better-auth": "^1.6.11"
   },
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@better-fetch/fetch": "^1.1.2",
-    "@types/node": "^25.5.2",
-    "typescript": "^6.0.2"
+    "@better-fetch/fetch": "^1.1.21",
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3"
   }
 }
