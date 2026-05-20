@@ -53,45 +53,46 @@ export const sudoPluginClient = (): BetterAuthClientPlugin & {
     },
     getActions: ($fetch) => {
       return {
-        sudo: {
-          reauth: async (data: { password: string }, fetchOptions?: BetterFetchOption) =>
-            $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth", {
+      sudo: {
+        reauth: async (data: { password: string }, fetchOptions?: BetterFetchOption) =>
+          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth", {
+            method: "POST",
+            body: data,
+            ...fetchOptions,
+          }),
+        reauthOtpSend: async (fetchOptions?: BetterFetchOption) =>
+          $fetch<{ message: string }>("/sudo/reauth-otp-send", {
+            method: "POST",
+            ...fetchOptions,
+          }),
+        reauthOtpVerify: async (data: { otp: string }, fetchOptions?: BetterFetchOption) =>
+          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth-otp-verify", {
+            method: "POST",
+            body: data,
+            ...fetchOptions,
+          }),
+        withSudoPassword: async <T>(
+          password: string,
+          fn: (headers: RequestHeaders) => Promise<T>,
+        ): Promise<SudoResponse<T>> => {
+          const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
+            "/sudo/reauth",
+            {
               method: "POST",
-              body: data,
-              ...fetchOptions,
-            }),
-          reauthOtpSend: async (fetchOptions?: BetterFetchOption) =>
-            $fetch<{ message: string }>("/sudo/reauth-otp-send", {
-              method: "POST",
-              ...fetchOptions,
-            }),
-          reauthOtpVerify: async (data: { otp: string }, fetchOptions?: BetterFetchOption) =>
-            $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth-otp-verify", {
-              method: "POST",
-              body: data,
-              ...fetchOptions,
-            }),
-          withSudoPassword: async <T>(
-            password: string,
-            fn: (headers: RequestHeaders) => Promise<T>,
-          ): Promise<SudoResponse<T>> => {
-            const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
-              "/sudo/reauth",
-              {
-                method: "POST",
-                body: { password },
-              },
-            );
-            if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };
-            try {
-              const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
-              return { data: result, error: null };
-            } catch (err) {
-              return { data: null, error: err };
-            }
-          },
+              body: { password },
+            },
+          );
+          if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };
+          try {
+            const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
+            return { data: result, error: null };
+          } catch (err) {
+            return { data: null, error: err };
+          }
         },
-      } satisfies SudoClientActions;
+
+      },
+    } satisfies SudoClientActions;
     },
   } satisfies BetterAuthClientPlugin;
 };
