@@ -9,6 +9,8 @@ export declare const SudoErrorCodes: {
     readonly INVALID_CREDENTIALS: "INVALID_CREDENTIALS";
     readonly OTP_NOT_CONFIGURED: "OTP_NOT_CONFIGURED";
     readonly INVALID_OTP: "INVALID_OTP";
+    readonly TOTP_NOT_ENABLED: "TOTP_NOT_ENABLED";
+    readonly INVALID_TOTP: "INVALID_TOTP";
     readonly SUDO_INVALID: "SUDO_INVALID";
     readonly SUDO_REQUIRED: "SUDO_REQUIRED";
 };

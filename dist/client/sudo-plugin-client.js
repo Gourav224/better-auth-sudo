@@ -8,6 +8,7 @@ export const sudoPluginClient = () => {
             "/sudo/reauth": "POST",
             "/sudo/reauth-otp-send": "POST",
             "/sudo/reauth-otp-verify": "POST",
+            "/sudo/reauth-totp": "POST",
             "/sudo/verify": "POST",
         },
         getActions: ($fetch) => {
@@ -27,10 +28,30 @@ export const sudoPluginClient = () => {
                         body: data,
                         ...fetchOptions,
                     }),
+                    reauthTotp: async (data, fetchOptions) => $fetch("/sudo/reauth-totp", {
+                        method: "POST",
+                        body: data,
+                        ...fetchOptions,
+                    }),
                     withSudoPassword: async (password, fn) => {
                         const { data: authData, error } = await $fetch("/sudo/reauth", {
                             method: "POST",
                             body: { password },
+                        });
+                        if (error || !authData)
+                            return { data: null, error: error ?? new Error("Failed to reauth") };
+                        try {
+                            const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
+                            return { data: result, error: null };
+                        }
+                        catch (err) {
+                            return { data: null, error: err };
+                        }
+                    },
+                    withSudoTotp: async (code, fn) => {
+                        const { data: authData, error } = await $fetch("/sudo/reauth-totp", {
+                            method: "POST",
+                            body: { code },
                         });
                         if (error || !authData)
                             return { data: null, error: error ?? new Error("Failed to reauth") };

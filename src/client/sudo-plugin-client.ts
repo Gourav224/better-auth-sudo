@@ -31,8 +31,16 @@ export interface SudoClientActions {
       data: { otp: string },
       fetchOptions?: BetterFetchOption,
     ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
+    reauthTotp: (
+      data: { code: string },
+      fetchOptions?: BetterFetchOption,
+    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
     withSudoPassword: <T>(
       password: string,
+      fn: (headers: RequestHeaders) => Promise<T>,
+    ) => Promise<SudoResponse<T>>;
+    withSudoTotp: <T>(
+      code: string,
       fn: (headers: RequestHeaders) => Promise<T>,
     ) => Promise<SudoResponse<T>>;
   };
@@ -49,6 +57,7 @@ export const sudoPluginClient = (): BetterAuthClientPlugin & {
       "/sudo/reauth": "POST",
       "/sudo/reauth-otp-send": "POST",
       "/sudo/reauth-otp-verify": "POST",
+      "/sudo/reauth-totp": "POST",
       "/sudo/verify": "POST",
     },
     getActions: ($fetch) => {
@@ -71,6 +80,12 @@ export const sudoPluginClient = (): BetterAuthClientPlugin & {
             body: data,
             ...fetchOptions,
           }),
+        reauthTotp: async (data: { code: string }, fetchOptions?: BetterFetchOption) =>
+          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth-totp", {
+            method: "POST",
+            body: data,
+            ...fetchOptions,
+          }),
         withSudoPassword: async <T>(
           password: string,
           fn: (headers: RequestHeaders) => Promise<T>,
@@ -80,6 +95,25 @@ export const sudoPluginClient = (): BetterAuthClientPlugin & {
             {
               method: "POST",
               body: { password },
+            },
+          );
+          if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };
+          try {
+            const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
+            return { data: result, error: null };
+          } catch (err) {
+            return { data: null, error: err };
+          }
+        },
+        withSudoTotp: async <T>(
+          code: string,
+          fn: (headers: RequestHeaders) => Promise<T>,
+        ): Promise<SudoResponse<T>> => {
+          const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
+            "/sudo/reauth-totp",
+            {
+              method: "POST",
+              body: { code },
             },
           );
           if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };

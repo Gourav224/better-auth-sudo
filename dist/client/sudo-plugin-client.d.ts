@@ -28,7 +28,14 @@ export interface SudoClientActions {
             sudoToken: string;
             expiresIn: number;
         }>>;
+        reauthTotp: (data: {
+            code: string;
+        }, fetchOptions?: BetterFetchOption) => Promise<SudoResponse<{
+            sudoToken: string;
+            expiresIn: number;
+        }>>;
         withSudoPassword: <T>(password: string, fn: (headers: RequestHeaders) => Promise<T>) => Promise<SudoResponse<T>>;
+        withSudoTotp: <T>(code: string, fn: (headers: RequestHeaders) => Promise<T>) => Promise<SudoResponse<T>>;
     };
 }
 export declare const sudoPluginClient: () => BetterAuthClientPlugin & {
