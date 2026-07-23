@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
 import { createAuthEndpoint, sessionMiddleware } from "better-auth/api";
+import { symmetricDecrypt } from "better-auth/crypto";
+import { createOTP } from "@better-auth/utils/otp";
 import { z } from "zod";
 import { SudoErrorCodes } from "../shared/constants";
 function createMemoryStorage() {
@@ -115,6 +117,7 @@ export function createSudoPlugin(options) {
             { pathMatcher: (path) => path.startsWith("/sudo/"), window: 60, max: 10 },
             { pathMatcher: (path) => path === "/sudo/reauth", window: 60, max: 5 },
             { pathMatcher: (path) => path === "/sudo/reauth-otp-send", window: 60, max: 3 },
+            { pathMatcher: (path) => path === "/sudo/reauth-totp", window: 60, max: 5 },
         ],
         endpoints: {
             sudoReauth: createAuthEndpoint("/sudo/reauth", {
@@ -243,6 +246,66 @@ export function createSudoPlugin(options) {
                     userId: user.id,
                     ip: getIp(ctx.request),
                     method: "otp",
+                    event: "granted",
+                    timestamp: Date.now(),
+                });
+                return ctx.json({ sudoToken: token, expiresIn: ttl });
+            }),
+            // Reauth via the user's existing authenticator app (TOTP), for accounts
+            // that already have two-factor authentication enabled (the `twoFactor`
+            // plugin). This mirrors GitHub/AWS-style sudo mode, which prefers an
+            // authenticator code over a password when 2FA is available. Reuses the
+            // same secret and verification algorithm the `twoFactor` plugin itself
+            // uses, so a code from the user's existing authenticator app works
+            // as-is — no separate enrollment.
+            sudoReauthTotp: createAuthEndpoint("/sudo/reauth-totp", {
+                method: "POST",
+                use: [sessionMiddleware],
+                body: z.object({ code: z.string().min(6).max(6) }),
+            }, async (ctx) => {
+                ctx.setHeader?.("Cache-Control", "no-store");
+                ctx.setHeader?.("Pragma", "no-cache");
+                const { user } = ctx.context.session;
+                const twoFactor = await ctx.context.adapter.findOne({
+                    model: "twoFactor",
+                    where: [{ field: "userId", value: user.id }],
+                });
+                if (!twoFactor || !user.twoFactorEnabled) {
+                    throw ctx.error("BAD_REQUEST", {
+                        message: "Two-factor authentication is not enabled on this account.",
+                        code: SudoErrorCodes.TOTP_NOT_ENABLED,
+                    });
+                }
+                const secret = await symmetricDecrypt({
+                    key: ctx.context.secretConfig,
+                    data: twoFactor.secret,
+                });
+                const isValid = await createOTP(secret, { digits: 6, period: 30 }).verify(ctx.body.code);
+                if (!isValid) {
+                    throw ctx.error("UNAUTHORIZED", {
+                        message: "Invalid authenticator code.",
+                        code: SudoErrorCodes.INVALID_TOTP,
+                    });
+                }
+                const token = generateToken();
+                const payload = {
+                    userId: user.id,
+                    sessionId: ctx.context.session.session.id,
+                    method: "totp",
+                    createdAt: Date.now(),
+                    remainingUses: maxUses,
+                };
+                await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
+                await options.onSudoGranted?.({
+                    userId: user.id,
+                    email: user.email,
+                    method: "totp",
+                    ip: getIp(ctx.request),
+                });
+                logAudit({
+                    userId: user.id,
+                    ip: getIp(ctx.request),
+                    method: "totp",
                     event: "granted",
                     timestamp: Date.now(),
                 });

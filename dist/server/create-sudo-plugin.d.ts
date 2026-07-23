@@ -45,7 +45,7 @@ export interface SudoPluginOptions {
     onSudoGranted?: (opts: {
         userId: string;
         email: string;
-        method: "password" | "otp";
+        method: "password" | "otp" | "totp";
         ip: string;
     }) => Promise<void> | void;
     /**
@@ -60,7 +60,7 @@ export interface SudoPluginOptions {
 export interface SudoTokenPayload {
     userId: string;
     sessionId: string;
-    method: "password" | "otp";
+    method: "password" | "otp" | "totp";
     createdAt: number;
     /**
      * Remaining uses for this token. If omitted, the token is single‑use.
@@ -71,7 +71,7 @@ interface AuditEntry {
     id: string;
     userId: string;
     ip: string;
-    method: "password" | "otp";
+    method: "password" | "otp" | "totp";
     event: "granted" | "verified";
     timestamp: number;
 }
