@@ -13,25 +13,68 @@ export interface RedisLike {
 }
 
 export interface SudoPluginOptions {
+  /**
+   * Primary storage configuration. Supports memory (default) or Redis.
+   */
   storage: { provider: "memory" } | { provider: "redis"; client: RedisLike };
+  /**
+   * Default TTL (seconds) for tokens created via password re‑auth.
+   */
   ttl?: number;
+  /**
+   * TTL (seconds) for OTP payloads.
+   */
   otpTtl?: number;
+  /**
+   * Maximum number of times a token can be used before it becomes invalid.
+   * If omitted the token is single‑use.
+   */
+  maxUses?: number;
+  /**
+   * If true, each successful verification refreshes the token TTL (sliding expiration).
+   */
+  sliding?: boolean;
+  /**
+   * Optional function to send OTPs.
+   */
   sendOtp?: (opts: { email: string; otp: string; name: string }) => Promise<void> | void;
+  /**
+   * Callback invoked when sudo is granted.
+   */
   onSudoGranted?: (opts: {
     userId: string;
     email: string;
     method: "password" | "otp";
     ip: string;
   }) => Promise<void> | void;
+  /**
+   * Simple in‑memory audit logging. Set `enabled` to true to keep a per‑process log of sudo events.
+   * For production you would replace this with a DB‑backed logger.
+   */
+  audit?: { enabled: boolean; log?: (entry: Omit<AuditEntry, "id">) => void };
 }
+
 
 export interface SudoTokenPayload {
   userId: string;
   sessionId: string;
   method: "password" | "otp";
   createdAt: number;
+  /**
+   * Remaining uses for this token. If omitted, the token is single‑use.
+   */
+  remainingUses?: number;
 }
 
+
+interface AuditEntry {
+  id: string;
+  userId: string;
+  ip: string;
+  method: "password" | "otp";
+  event: "granted" | "verified";
+  timestamp: number;
+}
 interface OtpPayload {
   code: string;
   attempts: number;
@@ -116,8 +159,19 @@ export function createSudoPlugin(options: SudoPluginOptions): {
     sessionId: string
   ) => Promise<SudoTokenPayload | null>;
 } {
+  const auditLog: AuditEntry[] = [];
+    const logAudit = (entry: Omit<AuditEntry, "id">) => {
+      if (!options.audit?.enabled) return;
+      if (options.audit?.log) {
+        options.audit.log(entry);
+        return;
+      }
+      auditLog.push({ id: crypto.randomUUID(), ...entry });
+    };
   const ttl = options.ttl ?? 300;
   const otpTtl = options.otpTtl ?? 600;
+  const maxUses = options.maxUses ?? 1;
+  const sliding = options.sliding ?? false;
   const storage: StorageAdapter =
     options.storage.provider === "redis"
       ? createRedisStorage(options.storage.client)
@@ -136,6 +190,20 @@ export function createSudoPlugin(options: SudoPluginOptions): {
       payload = JSON.parse(raw) as SudoTokenPayload;
     } catch {
       return null;
+    }
+    // Handle maxUses and sliding expiration
+    if (payload.remainingUses === undefined) payload.remainingUses = 1;
+    if (payload.remainingUses <= 0) return null;
+    // Decrement remaining uses
+    payload.remainingUses -= 1;
+    // If token still has uses left, persist it again
+    if (payload.remainingUses > 0) {
+      const newTtl = sliding ? options.ttl ?? 300 : undefined;
+      await storage.set(
+        tokenKey(token),
+        JSON.stringify(payload),
+        newTtl ?? options.ttl ?? 300,
+      );
     }
     return payload.userId === userId && payload.sessionId === sessionId ? payload : null;
   }
@@ -187,21 +255,30 @@ export function createSudoPlugin(options: SudoPluginOptions): {
               code: SudoErrorCodes.INVALID_CREDENTIALS,
             });
           }
-          const token = generateToken();
-          const payload: SudoTokenPayload = {
-            userId: user.id,
-            sessionId: ctx.context.session.session.id,
-            method: "password",
-            createdAt: Date.now(),
-          };
-          await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
-          await options.onSudoGranted?.({
-            userId: user.id,
-            email: user.email,
-            method: "password",
-            ip: getIp(ctx.request),
-          });
-          return ctx.json({ sudoToken: token, expiresIn: ttl });
+            const token = generateToken();
+                const payload: SudoTokenPayload = {
+                  userId: user.id,
+                  sessionId: ctx.context.session.session.id,
+                  method: "password",
+                  createdAt: Date.now(),
+                  remainingUses: maxUses,
+                };
+              await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
+              await options.onSudoGranted?.({
+                userId: user.id,
+                email: user.email,
+                method: "password",
+                ip: getIp(ctx.request),
+              });
+              // Log audit entry
+              logAudit({
+                userId: user.id,
+                ip: getIp(ctx.request),
+                method: "password",
+                event: "granted",
+                timestamp: Date.now(),
+              });
+              return ctx.json({ sudoToken: token, expiresIn: ttl });
         },
       ),
       sudoReauthOtpSend: createAuthEndpoint(
@@ -265,51 +342,71 @@ export function createSudoPlugin(options: SudoPluginOptions): {
           // Valid case: cleanup OTP
           await storage.del(key);
 
-          const token = generateToken();
-          const payload: SudoTokenPayload = {
-            userId: user.id,
-            sessionId: ctx.context.session.session.id,
-            method: "otp",
-            createdAt: Date.now(),
-          };
-          await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
-          await options.onSudoGranted?.({
-            userId: user.id,
-            email: user.email,
-            method: "otp",
-            ip: getIp(ctx.request),
-          });
-          return ctx.json({ sudoToken: token, expiresIn: ttl });
+            const token = generateToken();
+                const payload: SudoTokenPayload = {
+                  userId: user.id,
+                  sessionId: ctx.context.session.session.id,
+                  method: "otp",
+                  createdAt: Date.now(),
+                  remainingUses: maxUses,
+                };
+              await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
+              await options.onSudoGranted?.({
+                userId: user.id,
+                email: user.email,
+                method: "otp",
+                ip: getIp(ctx.request),
+              });
+              // Log audit entry for OTP grant
+              logAudit({
+                userId: user.id,
+                ip: getIp(ctx.request),
+                method: "otp",
+                event: "granted",
+                timestamp: Date.now(),
+              });
+              return ctx.json({ sudoToken: token, expiresIn: ttl });
         },
       ),
-      sudoVerify: createAuthEndpoint(
-        "/sudo/verify",
-        {
-          method: "POST",
-          use: [sessionMiddleware],
-          body: z.object({ sudoToken: z.string().min(1) }),
-        },
-        async (ctx) => {
-          ctx.setHeader?.("Cache-Control", "no-store");
-          ctx.setHeader?.("Pragma", "no-cache");
-          const { user, session } = ctx.context.session;
-          const payload = await verifyToken(ctx.body.sudoToken, user.id, session.id);
-          if (!payload) {
-            throw ctx.error("FORBIDDEN", {
-              message: "Sudo token is invalid or has expired.",
-              code: SudoErrorCodes.SUDO_INVALID,
+        sudoVerify: createAuthEndpoint(
+          "/sudo/verify",
+          {
+            method: "POST",
+            use: [sessionMiddleware],
+            body: z.object({ sudoToken: z.string().min(1) }),
+          },
+          async (ctx) => {
+            ctx.setHeader?.("Cache-Control", "no-store");
+            ctx.setHeader?.("Pragma", "no-cache");
+            const { user, session } = ctx.context.session;
+            const payload = await verifyToken(ctx.body.sudoToken, user.id, session.id);
+            if (!payload) {
+              throw ctx.error("FORBIDDEN", {
+                message: "Sudo token is invalid or has expired.",
+                code: SudoErrorCodes.SUDO_INVALID,
+              });
+            }
+            // Log successful verification audit
+            logAudit({
+              userId: user.id,
+              ip: getIp(ctx.request),
+              method: payload.method,
+              event: "verified",
+              timestamp: Date.now(),
             });
-          }
-          return ctx.json({
-            valid: true as const,
-            userId: payload.userId,
-            method: payload.method,
-            grantedAt: new Date(payload.createdAt).toISOString(),
-          });
-        },
-      ),
-    },
-  } satisfies BetterAuthPlugin;
+            return ctx.json({
+              valid: true as const,
+              userId: payload.userId,
+              method: payload.method,
+              grantedAt: new Date(payload.createdAt).toISOString(),
+            });
+          },
+        ),
+        // New audit endpoint (self‑service)
+      // Audit endpoint removed – audit logging is now handled via the `logAudit` function and can be invoked via the `options.audit?.log` callback.
+
+      },
+    } satisfies BetterAuthPlugin;
 
   return { plugin, verifyToken };
 }

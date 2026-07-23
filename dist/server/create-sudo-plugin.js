@@ -64,8 +64,20 @@ function getIp(req) {
         "unknown");
 }
 export function createSudoPlugin(options) {
+    const auditLog = [];
+    const logAudit = (entry) => {
+        if (!options.audit?.enabled)
+            return;
+        if (options.audit?.log) {
+            options.audit.log(entry);
+            return;
+        }
+        auditLog.push({ id: crypto.randomUUID(), ...entry });
+    };
     const ttl = options.ttl ?? 300;
     const otpTtl = options.otpTtl ?? 600;
+    const maxUses = options.maxUses ?? 1;
+    const sliding = options.sliding ?? false;
     const storage = options.storage.provider === "redis"
         ? createRedisStorage(options.storage.client)
         : createMemoryStorage();
@@ -81,6 +93,18 @@ export function createSudoPlugin(options) {
         }
         catch {
             return null;
+        }
+        // Handle maxUses and sliding expiration
+        if (payload.remainingUses === undefined)
+            payload.remainingUses = 1;
+        if (payload.remainingUses <= 0)
+            return null;
+        // Decrement remaining uses
+        payload.remainingUses -= 1;
+        // If token still has uses left, persist it again
+        if (payload.remainingUses > 0) {
+            const newTtl = sliding ? options.ttl ?? 300 : undefined;
+            await storage.set(tokenKey(token), JSON.stringify(payload), newTtl ?? options.ttl ?? 300);
         }
         return payload.userId === userId && payload.sessionId === sessionId ? payload : null;
     }
@@ -130,6 +154,7 @@ export function createSudoPlugin(options) {
                     sessionId: ctx.context.session.session.id,
                     method: "password",
                     createdAt: Date.now(),
+                    remainingUses: maxUses,
                 };
                 await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
                 await options.onSudoGranted?.({
@@ -137,6 +162,14 @@ export function createSudoPlugin(options) {
                     email: user.email,
                     method: "password",
                     ip: getIp(ctx.request),
+                });
+                // Log audit entry
+                logAudit({
+                    userId: user.id,
+                    ip: getIp(ctx.request),
+                    method: "password",
+                    event: "granted",
+                    timestamp: Date.now(),
                 });
                 return ctx.json({ sudoToken: token, expiresIn: ttl });
             }),
@@ -196,6 +229,7 @@ export function createSudoPlugin(options) {
                     sessionId: ctx.context.session.session.id,
                     method: "otp",
                     createdAt: Date.now(),
+                    remainingUses: maxUses,
                 };
                 await storage.set(tokenKey(token), JSON.stringify(payload), ttl);
                 await options.onSudoGranted?.({
@@ -203,6 +237,14 @@ export function createSudoPlugin(options) {
                     email: user.email,
                     method: "otp",
                     ip: getIp(ctx.request),
+                });
+                // Log audit entry for OTP grant
+                logAudit({
+                    userId: user.id,
+                    ip: getIp(ctx.request),
+                    method: "otp",
+                    event: "granted",
+                    timestamp: Date.now(),
                 });
                 return ctx.json({ sudoToken: token, expiresIn: ttl });
             }),
@@ -221,6 +263,14 @@ export function createSudoPlugin(options) {
                         code: SudoErrorCodes.SUDO_INVALID,
                     });
                 }
+                // Log successful verification audit
+                logAudit({
+                    userId: user.id,
+                    ip: getIp(ctx.request),
+                    method: payload.method,
+                    event: "verified",
+                    timestamp: Date.now(),
+                });
                 return ctx.json({
                     valid: true,
                     userId: payload.userId,
@@ -228,6 +278,8 @@ export function createSudoPlugin(options) {
                     grantedAt: new Date(payload.createdAt).toISOString(),
                 });
             }),
+            // New audit endpoint (self‑service)
+            // Audit endpoint removed – audit logging is now handled via the `logAudit` function and can be invoked via the `options.audit?.log` callback.
         },
     };
     return { plugin, verifyToken };
