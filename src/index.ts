@@ -5,5 +5,5 @@ export {
   type SudoPluginOptions,
   type SudoTokenPayload,
 } from "./server/create-sudo-plugin";
-export { sudoPluginClient, type SudoClientActions } from "./client/sudo-plugin-client";
+export { sudoPluginClient } from "./client/sudo-plugin-client";
 

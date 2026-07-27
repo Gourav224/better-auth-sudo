@@ -65,6 +65,16 @@ function getIp(req) {
         req.headers.get("cf-connecting-ip") ??
         "unknown");
 }
+/**
+ * The return type is inferred, never annotated.
+ *
+ * Annotating `plugin` as `BetterAuthPlugin` erases the `endpoints` literal,
+ * and that literal is the entire basis for client-side inference: the client
+ * plugin does `$InferServerPlugin: {} as ReturnType<typeof createSudoPlugin>["plugin"]`,
+ * so a widened server type leaves the client with no endpoints to derive
+ * `authClient.sudo.*` from. `satisfies BetterAuthPlugin` on the object below
+ * gives the same checking while preserving the literal type.
+ */
 export function createSudoPlugin(options) {
     const auditLog = [];
     const logAudit = (entry) => {

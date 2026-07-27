@@ -153,14 +153,17 @@ function getIp(req?: Request): string {
   );
 }
 
-export function createSudoPlugin(options: SudoPluginOptions): {
-  plugin: BetterAuthPlugin;
-  verifyToken: (
-    token: string,
-    userId: string,
-    sessionId: string
-  ) => Promise<SudoTokenPayload | null>;
-} {
+/**
+ * The return type is inferred, never annotated.
+ *
+ * Annotating `plugin` as `BetterAuthPlugin` erases the `endpoints` literal,
+ * and that literal is the entire basis for client-side inference: the client
+ * plugin does `$InferServerPlugin: {} as ReturnType<typeof createSudoPlugin>["plugin"]`,
+ * so a widened server type leaves the client with no endpoints to derive
+ * `authClient.sudo.*` from. `satisfies BetterAuthPlugin` on the object below
+ * gives the same checking while preserving the literal type.
+ */
+export function createSudoPlugin(options: SudoPluginOptions) {
   const auditLog: AuditEntry[] = [];
     const logAudit = (entry: Omit<AuditEntry, "id">) => {
       if (!options.audit?.enabled) return;
@@ -210,7 +213,7 @@ export function createSudoPlugin(options: SudoPluginOptions): {
     return payload.userId === userId && payload.sessionId === sessionId ? payload : null;
   }
 
-  const plugin: BetterAuthPlugin = {
+  const plugin = {
     id: "sudo",
     version: "0.1.0",
     rateLimit: [

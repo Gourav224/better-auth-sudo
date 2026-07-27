@@ -1,58 +1,38 @@
-import type { BetterFetchOption } from "@better-fetch/fetch";
 import type { BetterAuthClientPlugin } from "better-auth/client";
 
 import type { createSudoPlugin } from "../server/create-sudo-plugin";
-import { SudoHeaders } from "../shared/constants";
 
-interface SudoClientError {
-  message?: string;
-  code?: string;
-}
+type SudoPlugin = ReturnType<typeof createSudoPlugin>["plugin"];
 
-interface SudoResponse<TData> {
-  data: TData | null;
-  error: SudoClientError | Error | unknown;
-}
-
-interface RequestHeaders {
-  [key: string]: string;
-}
-
-export interface SudoClientActions {
-  sudo: {
-    reauth: (
-      data: { password: string },
-      fetchOptions?: BetterFetchOption,
-    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
-    reauthOtpSend: (
-      fetchOptions?: BetterFetchOption,
-    ) => Promise<SudoResponse<{ message: string }>>;
-    reauthOtpVerify: (
-      data: { otp: string },
-      fetchOptions?: BetterFetchOption,
-    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
-    reauthTotp: (
-      data: { code: string },
-      fetchOptions?: BetterFetchOption,
-    ) => Promise<SudoResponse<{ sudoToken: string; expiresIn: number }>>;
-    withSudoPassword: <T>(
-      password: string,
-      fn: (headers: RequestHeaders) => Promise<T>,
-    ) => Promise<SudoResponse<T>>;
-    withSudoTotp: <T>(
-      code: string,
-      fn: (headers: RequestHeaders) => Promise<T>,
-    ) => Promise<SudoResponse<T>>;
-  };
-}
-
-export const sudoPluginClient = (): BetterAuthClientPlugin & {
-  getActions: ($fetch: any) => SudoClientActions;
-} => {
+/**
+ * Client plugin for sudo mode.
+ *
+ * Follows the shape from better-auth's plugin guide: an object literal closed
+ * with `satisfies BetterAuthClientPlugin`, and **no explicit return type
+ * annotation**. Both details are load-bearing.
+ *
+ * - Annotating the return as `BetterAuthClientPlugin` widens the plugin to the
+ *   base interface. `createAuthClient` derives every plugin's actions from the
+ *   literal type of the array elements, so one widened plugin degrades the
+ *   whole client to `ReactAuthClient<BetterAuthClientOptions>` — organization,
+ *   twoFactor and `$Infer` all lose their types along with it.
+ *
+ * - There is deliberately no `getActions`. better-auth generates the client
+ *   actions from the server plugin's `endpoints` via `$InferServerPlugin`, so
+ *   `/sudo/reauth` is reachable as `authClient.sudo.reauth(...)` with the
+ *   standard `{ data, error }` envelope, typed from the server's own schema.
+ *   Hand-writing them duplicated the endpoint list and forced a `$fetch`
+ *   parameter whose type does not satisfy `BetterAuthClientPlugin.getActions`
+ *   (an upstream @better-fetch/fetch variance issue that better-auth's own
+ *   `oneTapClient` also trips over).
+ *
+ * `pathMethods` only tells the client which verb to use for paths it cannot
+ * infer as POST; the endpoints themselves come from the server plugin type.
+ */
+export const sudoPluginClient = () => {
   return {
     id: "sudo",
-    version: "0.1.0",
-    $InferServerPlugin: {} as ReturnType<typeof createSudoPlugin>["plugin"],
+    $InferServerPlugin: {} as SudoPlugin,
     pathMethods: {
       "/sudo/reauth": "POST",
       "/sudo/reauth-otp-send": "POST",
@@ -60,74 +40,5 @@ export const sudoPluginClient = (): BetterAuthClientPlugin & {
       "/sudo/reauth-totp": "POST",
       "/sudo/verify": "POST",
     },
-    getActions: ($fetch) => {
-      return {
-      sudo: {
-        reauth: async (data: { password: string }, fetchOptions?: BetterFetchOption) =>
-          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth", {
-            method: "POST",
-            body: data,
-            ...fetchOptions,
-          }),
-        reauthOtpSend: async (fetchOptions?: BetterFetchOption) =>
-          $fetch<{ message: string }>("/sudo/reauth-otp-send", {
-            method: "POST",
-            ...fetchOptions,
-          }),
-        reauthOtpVerify: async (data: { otp: string }, fetchOptions?: BetterFetchOption) =>
-          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth-otp-verify", {
-            method: "POST",
-            body: data,
-            ...fetchOptions,
-          }),
-        reauthTotp: async (data: { code: string }, fetchOptions?: BetterFetchOption) =>
-          $fetch<{ sudoToken: string; expiresIn: number }>("/sudo/reauth-totp", {
-            method: "POST",
-            body: data,
-            ...fetchOptions,
-          }),
-        withSudoPassword: async <T>(
-          password: string,
-          fn: (headers: RequestHeaders) => Promise<T>,
-        ): Promise<SudoResponse<T>> => {
-          const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
-            "/sudo/reauth",
-            {
-              method: "POST",
-              body: { password },
-            },
-          );
-          if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };
-          try {
-            const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
-            return { data: result, error: null };
-          } catch (err) {
-            return { data: null, error: err };
-          }
-        },
-        withSudoTotp: async <T>(
-          code: string,
-          fn: (headers: RequestHeaders) => Promise<T>,
-        ): Promise<SudoResponse<T>> => {
-          const { data: authData, error } = await $fetch<{ sudoToken: string; expiresIn: number }>(
-            "/sudo/reauth-totp",
-            {
-              method: "POST",
-              body: { code },
-            },
-          );
-          if (error || !authData) return { data: null, error: error ?? new Error("Failed to reauth") };
-          try {
-            const result = await fn({ [SudoHeaders.X_SUDO_TOKEN]: authData.sudoToken });
-            return { data: result, error: null };
-          } catch (err) {
-            return { data: null, error: err };
-          }
-        },
-
-      },
-    } satisfies SudoClientActions;
-    },
   } satisfies BetterAuthClientPlugin;
 };
-
