@@ -97,7 +97,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
         endpoints: {
             sudoReauth: import("better-call").StrictEndpoint<"/sudo/reauth", {
                 method: "POST";
-                use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+                use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                     session: {
                         session: Record<string, any> & {
                             id: string;
@@ -119,7 +119,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
                             image?: string | null | undefined;
                         };
                     };
-                }>)[];
+                }>>[];
                 body: z.ZodObject<{
                     password: z.ZodString;
                 }, z.core.$strip>;
@@ -129,7 +129,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
             }>;
             sudoReauthOtpSend: import("better-call").StrictEndpoint<"/sudo/reauth-otp-send", {
                 method: "POST";
-                use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+                use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                     session: {
                         session: Record<string, any> & {
                             id: string;
@@ -151,13 +151,13 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
                             image?: string | null | undefined;
                         };
                     };
-                }>)[];
+                }>>[];
             }, {
                 message: string;
             }>;
             sudoReauthOtpVerify: import("better-call").StrictEndpoint<"/sudo/reauth-otp-verify", {
                 method: "POST";
-                use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+                use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                     session: {
                         session: Record<string, any> & {
                             id: string;
@@ -179,7 +179,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
                             image?: string | null | undefined;
                         };
                     };
-                }>)[];
+                }>>[];
                 body: z.ZodObject<{
                     otp: z.ZodString;
                 }, z.core.$strip>;
@@ -189,7 +189,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
             }>;
             sudoReauthTotp: import("better-call").StrictEndpoint<"/sudo/reauth-totp", {
                 method: "POST";
-                use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+                use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                     session: {
                         session: Record<string, any> & {
                             id: string;
@@ -211,7 +211,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
                             image?: string | null | undefined;
                         };
                     };
-                }>)[];
+                }>>[];
                 body: z.ZodObject<{
                     code: z.ZodString;
                 }, z.core.$strip>;
@@ -221,7 +221,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
             }>;
             sudoVerify: import("better-call").StrictEndpoint<"/sudo/verify", {
                 method: "POST";
-                use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+                use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                     session: {
                         session: Record<string, any> & {
                             id: string;
@@ -243,7 +243,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
                             image?: string | null | undefined;
                         };
                     };
-                }>)[];
+                }>>[];
                 body: z.ZodObject<{
                     sudoToken: z.ZodString;
                 }, z.core.$strip>;

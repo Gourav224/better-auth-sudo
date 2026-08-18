@@ -9,7 +9,7 @@ declare const sudoPlugin: {
     endpoints: {
         sudoReauth: import("better-call").StrictEndpoint<"/sudo/reauth", {
             method: "POST";
-            use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+            use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                 session: {
                     session: Record<string, any> & {
                         id: string;
@@ -31,7 +31,7 @@ declare const sudoPlugin: {
                         image?: string | null | undefined;
                     };
                 };
-            }>)[];
+            }>>[];
             body: import("zod").ZodObject<{
                 password: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -41,7 +41,7 @@ declare const sudoPlugin: {
         }>;
         sudoReauthOtpSend: import("better-call").StrictEndpoint<"/sudo/reauth-otp-send", {
             method: "POST";
-            use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+            use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                 session: {
                     session: Record<string, any> & {
                         id: string;
@@ -63,13 +63,13 @@ declare const sudoPlugin: {
                         image?: string | null | undefined;
                     };
                 };
-            }>)[];
+            }>>[];
         }, {
             message: string;
         }>;
         sudoReauthOtpVerify: import("better-call").StrictEndpoint<"/sudo/reauth-otp-verify", {
             method: "POST";
-            use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+            use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                 session: {
                     session: Record<string, any> & {
                         id: string;
@@ -91,7 +91,7 @@ declare const sudoPlugin: {
                         image?: string | null | undefined;
                     };
                 };
-            }>)[];
+            }>>[];
             body: import("zod").ZodObject<{
                 otp: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -101,7 +101,7 @@ declare const sudoPlugin: {
         }>;
         sudoReauthTotp: import("better-call").StrictEndpoint<"/sudo/reauth-totp", {
             method: "POST";
-            use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+            use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                 session: {
                     session: Record<string, any> & {
                         id: string;
@@ -123,7 +123,7 @@ declare const sudoPlugin: {
                         image?: string | null | undefined;
                     };
                 };
-            }>)[];
+            }>>[];
             body: import("zod").ZodObject<{
                 code: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
@@ -133,7 +133,7 @@ declare const sudoPlugin: {
         }>;
         sudoVerify: import("better-call").StrictEndpoint<"/sudo/verify", {
             method: "POST";
-            use: ((inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
+            use: import("better-call").Middleware<import("better-call").MiddlewareOptions, (inputContext: import("better-call").MiddlewareInputContext<import("better-call").MiddlewareOptions>) => Promise<{
                 session: {
                     session: Record<string, any> & {
                         id: string;
@@ -155,7 +155,7 @@ declare const sudoPlugin: {
                         image?: string | null | undefined;
                     };
                 };
-            }>)[];
+            }>>[];
             body: import("zod").ZodObject<{
                 sudoToken: import("zod").ZodString;
             }, import("zod/v4/core").$strip>;
