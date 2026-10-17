@@ -312,7 +312,7 @@ export function createSudoPlugin(options: SudoPluginOptions) {
         {
           method: "POST",
           use: [sessionMiddleware],
-          body: z.object({ otp: z.string().length(6).regex(/^\\d{6}$/) }),
+          body: z.object({ otp: z.string().length(6).regex(/^\d{6}$/) }),
         },
         async (ctx) => {
           ctx.setHeader?.("Cache-Control", "no-store");
