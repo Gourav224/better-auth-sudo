@@ -162,7 +162,7 @@ declare const sudoPlugin: {
         }, {
             valid: true;
             userId: string;
-            method: "password" | "otp" | "totp";
+            method: "otp" | "password" | "totp";
             grantedAt: string;
         }>;
     };

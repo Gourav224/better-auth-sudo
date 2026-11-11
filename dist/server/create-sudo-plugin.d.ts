@@ -250,7 +250,7 @@ export declare function createSudoPlugin(options: SudoPluginOptions): {
             }, {
                 valid: true;
                 userId: string;
-                method: "password" | "otp" | "totp";
+                method: "otp" | "password" | "totp";
                 grantedAt: string;
             }>;
         };
